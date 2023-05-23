@@ -53,17 +53,25 @@ const API_NAME = 'container';
  *               type: object
  *               $ref: '#/definitions/ApiResult'
   */
-router.get('/', async function(req, res, next) {
+router.get('/', function (req, res, next) {
   let errors = [];
   let status = 200;
   let containers = null;
+  let response = null;
+  
   logger.info(`test-message ${req.requestId}`);
   try {
     if (req.query.clientId) {
-      containers = await containerService.getClientContainers(req.query.clientId);
+      containers = containerService.getClientContainers(req.query.clientId);
     } else {
-      containers = await containerService.getContainers();
-    }
+      containers = containerService.getContainers();
+    }        
+    response = new ApiResult(
+      status === 200 ? 'OK' : 'ERROR',
+      containers,
+      req.requestId,
+      errors
+    );
   } catch (ex) {
     logger.error(
       `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId}: ${ex}`
@@ -77,18 +85,22 @@ router.get('/', async function(req, res, next) {
         `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`
       )
     );
+    response = new ApiResult('ERROR', null, req.requestId, errors);
   }
 
-  res
-    .status(status)
-    .json(
-      new ApiResult(
-        status === 200 ? 'OK' : 'ERROR',
-        containers,
-        req.requestId,
-        errors
-      )
-    );
+  savedData = {
+    id: req.requestId,
+    origin: req.headers.host ? req.headers.host : req.ip,
+    destiny: req.originalUrl,
+    method: req.method,
+    status: status=== 200 ? 'OK' : 'ERROR',
+    requestBody: req.body,
+    responseData: response,
+  }
+    registerService.postRegister(savedData);
+    register.responseData = response;
+
+    res.status(status).json(response);
 });
 
 /**
@@ -115,24 +127,34 @@ router.get('/', async function(req, res, next) {
  *               type: object
  *               $ref: '#/definitions/ApiResult'
   */
-router.get('/:id', async function(req, res, next) {
+router.get('/:id', function (req, res, next) {
   let errors = [];
   let status = 200;
   let container = null;
+  let response = null;
   try {
-    container = await containerService.getContainer(req.params.id);
-    if (container === undefined) {  
-      logger.error(`${API_NAME}: [${req.method}] ${req.originalUrl}: Container not found`)
+    container = containerService.getContainer(req.params.id);
+    if (container === undefined) {
+      logger.error(
+        `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : Container not found`
+      );
       status = 404;
       errors.push(
-        new ApiError(
+        new ApiError( 
           'CONTAINER-001',
           'Incorrect Id, this id does not exist',
           'Ensure that the Id included in the request are correct',
           `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`
         )
       );
-    }
+    }        
+    response = new ApiResult(
+      status === 200 ? 'OK' : 'ERROR',
+      container,
+      req.requestId,
+      errors
+    );
+    
   } catch (ex) {
     logger.error(
       `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : ${ex}`
@@ -146,18 +168,21 @@ router.get('/:id', async function(req, res, next) {
         `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`
       )
     );
+    response = new ApiResult('ERROR', null, req.requestId, errors);
   }
+  savedData = {
+    id: req.requestId,
+    origin: req.headers.host ? req.headers.host : req.ip,
+    destiny: req.originalUrl,
+    method: req.method,
+    status: status=== 200 ? 'OK' : 'ERROR',
+    requestBody: req.body,
+    responseData: response,
+  }
+    registerService.postRegister(savedData);
+    register.responseData = response;
 
-  res
-    .status(status)
-    .json(
-      new ApiResult(
-        status === 200 ? 'OK' : 'ERROR',
-        container,
-        req.requestId,
-        errors
-      )
-    );
+    res.status(status).json(response);
 });
 
 /**
@@ -183,34 +208,47 @@ router.get('/:id', async function(req, res, next) {
  *               type: object
  *               $ref: '#/definitions/ApiResult'
  */
-router.post('/', async function(req, res, next) {
+router.post('/', function (req, res, next) {
   let errors = [];
   let status = 201;
   let containerCreated = null;
-  
+  let response = null;
   try {
-    containerCreated = await containerService.postContainer(req.body);
+    containerCreated = containerService.postContainer(req.body);
+    response = new ApiResult(
+      status === 201 ? 'OK' : 'ERROR',
+      containerCreated,
+      req.requestId,
+      errors
+    );
   } catch (ex) {
     logger.error(
       `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : ${ex}`
     );
     status = 500;
-    errors.push(new ApiError('CONTAINER-001',
-      'Internal server error', 
-      ex.message, 
-      `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`));
-  }
-
-  res
-    .status(status)
-    .json(
-      new ApiResult(
-        status === 201 ? 'OK' : 'ERROR',
-        containerCreated,
-        req.requestId,
-        errors
+    errors.push(
+      new ApiError(
+        'CONTAINER-001',
+        'Internal server error',
+        'Server has an internal error with the request',
+        `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`
       )
     );
+    response = new ApiResult('ERROR', null, req.requestId, errors);
+  }
+  savedData = {
+    id: req.requestId,
+    origin: req.headers.host ? req.headers.host : req.ip,
+    destiny: req.originalUrl,
+    method: req.method,
+    status: status === 201 ? 'OK' : 'ERROR',
+    requestBody: req.body,
+    responseData: response,
+  }
+    registerService.postRegister(savedData);
+    register.responseData = response;
+
+    res.status(status).json(response);
 });
 
 /**
@@ -243,17 +281,14 @@ router.post('/', async function(req, res, next) {
  *               $ref: '#/definitions/ApiResult'
  */
 
-router.put('/:id', async function(req, res, next) {
-  logger.info(`About to update client id: ${req.params.id}`);
+router.put('/:id', function (req, res, next) {
   let errors = [];
   let status = 200;
   let containerUpdated = null;
+  let response = null;
 
   try {
-    const id = req.params.id;
-    const containerNewData = req.body;
-
-    containerUpdated = await containerService.putContainer(id, containerNewData);
+    containerUpdated = containerService.putContainer(req.params.id, req.body);
     if (containerUpdated === undefined) {
       logger.error(
         `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : Container not found`
@@ -268,27 +303,41 @@ router.put('/:id', async function(req, res, next) {
         )
       );
     }
+    response = new ApiResult(
+      status === 200 ? 'OK' : 'ERROR',
+      containerUpdated,
+      req.requestId,
+      errors
+    );
   } catch (ex) {
-    logger.error(`${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : ${ex}`)
-    console.log(ex);
+    logger.error(
+      `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : ${ex}`
+    );
     status = 500;
-    errors.push(new ApiError('CONTAINER-001',
-      'Internal server error',
-      'Server has an internal error with the request',
-      `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`));
-    return res.status(500).json(new ApiResult("ERROR", containerUpdated === undefined, errors));
-  }
-
-  res
-    .status(status)
-    .json(
-      new ApiResult(
-        status === 200 ? 'OK' : 'ERROR',
-        containerUpdated,
-        req.requestId,
-        errors
+    errors.push(
+      new ApiError(
+        'CONTAINER-001',
+        'Internal server error',
+        'Server has an internal error with the request',
+        `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`
       )
     );
+    response = new ApiResult('ERROR', null, req.requestId, errors);
+  }
+  savedData = {
+    id: req.requestId,
+    origin: req.headers.host ? req.headers.host : req.ip,
+    destiny: req.originalUrl,
+    method: req.method,
+    status: status=== 200 ? 'OK' : 'ERROR',
+    requestBody: req.body,
+    responseData: response,
+  }
+    registerService.postRegister(savedData);
+    register.responseData = response;
+
+    res.status(status).json(response);
+
 });
 
 /**
@@ -315,15 +364,16 @@ router.put('/:id', async function(req, res, next) {
  *               type: object
  *               $ref: '#/definitions/ApiResult'
  */
-router.delete('/:id', async function(req, res, next) {
+router.delete('/:id', function (req, res, next) {
   let errors = [];
   let status = 200;
   let containerDeleted = null;
+  let response = null;
 
   try {
     const id = req.params.id;
 
-    containerDeleted = await containerService.deleteContainer(id);
+    containerDeleted = containerService.deleteContainer(id);
     if (containerDeleted === undefined) {
       logger.error(
         `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : Container not found`
@@ -338,6 +388,12 @@ router.delete('/:id', async function(req, res, next) {
         )
       );
     }
+    response = new ApiResult(
+      status === 200 ? 'OK' : 'ERROR',
+      containerDeleted,
+      req.requestId,
+      errors
+    );
   } catch (ex) {
     logger.error(
       `${API_NAME}: [${req.method}] ${req.originalUrl}: reqId=${req.requestId} : ${ex}`
@@ -351,18 +407,22 @@ router.delete('/:id', async function(req, res, next) {
         `${req.protocol}://${req.get('host')}${HELP_BASE_URL}/CONTAINER-001`
       )
     );
+    response = new ApiResult('ERROR', null, req.requestId, errors);
   }
+  savedData = {
+    id: req.requestId,
+    origin: req.headers.host ? req.headers.host : req.ip,
+    destiny: req.originalUrl,
+    method: req.method,
+    status: status=== 200 ? 'OK' : 'ERROR',
+    requestBody: req.body,
+    responseData: response,
+  }
+    registerService.postRegister(savedData);
+    register.responseData = response;
 
-  res
-    .status(status)
-    .json(
-      new ApiResult(
-        status === 200 ? 'OK' : 'ERROR',
-        containerDeleted,
-        req.requestId,
-        errors
-      )
-    );
+    res.status(status).json(response);
+
 });
 
 module.exports = router;
